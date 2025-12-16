@@ -1,0 +1,27 @@
+[package]
+name = "vamq"
+version = "0.0.1"
+edition = "2024"
+license = "MIT"
+description = "Consume audio chunk from Voice Activity Messaging via ZeroMQ."
+repository = "https://github.com/patharanordev/vamq"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1.0.100"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+# pick exactly one provider for rustls
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+tungstenite = { version = "0.24", features = ["handshake"] }
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+zmq = "0.10"
+bytes = "1"
+tracing = "0.1"
+base64 = "0.22"
+byteorder = "1.5.0"
+secrecy = { version = "0.10.3", features = ["serde"] }
+rubato = "0.14"
+futures-util = "0.3.31"
