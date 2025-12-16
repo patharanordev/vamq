@@ -25,10 +25,11 @@ jobs:
         cargo fmt --all -- --check
         cargo clippy -- -D warnings
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --locked --verbose
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --locked --verbose
     - name: Publish
+      if: startWith(github.ref, 'refs/tags/v')
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       run: cargo publish --locked
