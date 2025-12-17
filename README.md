@@ -1,6 +1,10 @@
 # VAMQ
 
-Consume audio chunk from Voice Activity Messaging via ZeroMQ to support speech-to-X.
+Consume audio chunks from Voice Activity Messaging via ZeroMQ to support speech-to-X.
+
+Currently, VAMQ only supports voice activity input from [Silero VAD](https://github.com/snakers4/silero-vad).
+
+![overview](./assets/overview.jpg)
 
 ## AI providers
 
@@ -8,6 +12,95 @@ Consume audio chunk from Voice Activity Messaging via ZeroMQ to support speech-t
 - ⬜ Gemini
 
 ## Usage
+
+### Prerequisites
+
+VAMQ retrieve data from Silero-VAD service, sender should push header & payload to your target service via ZeroMQ look like this:
+
+```py
+speech_timestamps = get_speech_ts(
+    audio_float32,              # 1D torch.float32 in [-1, 1]
+    model,
+    sampling_rate=cfg.sampling_rate,
+    threshold=ARGS.trig_sum,                # was trig_sum; consider 0.5 if too sensitive
+    min_speech_duration_ms=min_speech_ms,   # from min_speech_samples
+    min_silence_duration_ms=min_silence_ms, # from min_silence_samples
+    window_size_samples=win,                 # from num_samples_per_window
+    speech_pad_ms=30                         # small context pad; tune as you like
+)
+
+if(len(speech_timestamps)>0):
+    print("silero VAD has detected a possible speech")
+
+    for seg in speech_timestamps:
+        s = int(seg['start'])
+        e = int(seg['end'])
+
+        # Pre-roll: take up to 200ms before start, from the *original int16* buffer
+        pre_start = max(0, s - preroll_samples)
+        # Why newsound is safer than wav_data:
+        # - Index units match (samples with samples) → no off-by-two errors.
+        # - You won’t accidentally cut mid-sample.
+        # - It stays correct if you change frame size; you don’t have to redo the math each time.
+        preroll_i16 = newsound[pre_start:s]
+        preroll_bytes = preroll_i16.astype(np.int16).tobytes()
+
+        # Segment bytes (int16 → bytes)
+        seg_i16 = newsound[s:e]
+        seg_bytes = seg_i16.astype(np.int16).tobytes()
+
+        # 1) START (+ optional PREROLL payload)
+        flags = 0b001 | (0b100 if len(preroll_bytes) > 0 else 0)
+        sender.send(sender.header(session_id, flags), preroll_bytes)
+
+        # 2) STREAM FRAMES (20ms each)
+        for chunk in chunks_20ms(seg_bytes, sr=cfg.sampling_rate, ch=cfg.channels, bytes_per_sample=cfg.bytes_per_sample):
+            if not chunk:
+                continue
+
+            # middle frames (flags=0)
+            sender.send(sender.header(session_id, 0), chunk)
+
+        # 3) END (empty payload)
+        sender.send(sender.header(session_id, 0b010), b"")
+
+else:
+    print("silero VAD has detected a noise")
+
+```
+
+#### Ex. `header` method in `sender` function
+
+```py
+def header(self, session_id:str, flags:int):
+    '''
+    flags:int
+    
+        - bit0=start
+        - bit1=end
+        - bit2=preroll
+    '''
+    return {
+        "session_id": session_id,
+        "seq": self.seq,
+        "ts_ns": time.monotonic_ns(), # Wall clock can jump (NTP). Use time.monotonic_ns() for your header timestamp.
+        "sr": self.configs.sampling_rate,
+        "ch": self.configs.channels,
+        "fmt": "s16le",
+        "flags": flags
+    }
+```
+
+#### Ex. `send` method in `sender` function
+
+It used socket with `zmq.PUSH` method, receiver will `zmq.PULL` the request:
+
+```py
+def send(self, header:dict, payload:bytes):
+    self.sock.send(json.dumps(header).encode("utf-8"), zmq.SNDMORE)
+    self.sock.send(payload, 0)
+    self.seq += 1
+```
 
 ### OpenAI
 
@@ -22,7 +115,6 @@ Assume you set data criteria look like this:
 
 - chunk of 30 ms @ 16kHz = 0.03 * 16_000 = 480 samples.
 - minimum commit size (@ 24k) – e.g. 360 ms.
-
 
 ```rs
 // ...
@@ -192,7 +284,8 @@ async fn handle_event(
         RtEvent::Other(v) => {
             debug!("realtime others event: {:?}", v);
         }
-        RtEvent::Idle => {}
+        RtEvent::Idle => {},
+        _ => {}
     }
     
     // Save the full audio response once "Completed"
