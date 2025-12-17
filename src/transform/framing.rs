@@ -82,7 +82,7 @@ pub fn write_wav_pcm16_mono_24k(path: &str, samples: &[u8]) -> anyhow::Result<()
 
 pub fn pcm16_silence_24k(ms: u32) -> Vec<u8> {
     let samples = (24_000u32 * ms / 1000) as usize;
-    let mut out = vec![0u8; samples * 2]; // i16 zeros
+    let out = vec![0u8; samples * 2]; // i16 zeros
     // already zero-filled
     out
 }
