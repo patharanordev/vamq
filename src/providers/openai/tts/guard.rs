@@ -16,9 +16,9 @@ pub struct TtsChunkGuard {
     last_flush: Instant,
 
     // thresholds (tune as needed)
-    min_chars: usize,      // flush if >= this and boundary found
-    max_chars: usize,      // flush if exceeds this regardless
-    max_wait: Duration,    // flush if waiting too long (cadence)
+    min_chars: usize,   // flush if >= this and boundary found
+    max_chars: usize,   // flush if exceeds this regardless
+    max_wait: Duration, // flush if waiting too long (cadence)
 }
 
 impl Default for TtsChunkGuard {
@@ -26,8 +26,8 @@ impl Default for TtsChunkGuard {
         Self {
             buf: String::new(),
             last_flush: Instant::now(),
-            min_chars: 90,                 // ~10–20 words
-            max_chars: 260,                // ~1–2 sentences
+            min_chars: 90,  // ~10–20 words
+            max_chars: 260, // ~1–2 sentences
             max_wait: Duration::from_millis(320),
         }
     }
@@ -112,8 +112,13 @@ impl TtsChunkGuard {
 
 fn ends_with_boundary(s: &str) -> bool {
     let t = s.trim_end();
-    t.ends_with('.') || t.ends_with('?') || t.ends_with('!') || t.ends_with('\n') ||
-    t.ends_with(',') || t.ends_with(':') || t.ends_with(';')
+    t.ends_with('.')
+        || t.ends_with('?')
+        || t.ends_with('!')
+        || t.ends_with('\n')
+        || t.ends_with(',')
+        || t.ends_with(':')
+        || t.ends_with(';')
 }
 
 /// Find a boundary near the end: prefer ".?!\n", fallback to ",:; "

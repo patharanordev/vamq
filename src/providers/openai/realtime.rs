@@ -39,10 +39,7 @@ impl RealtimeClient {
 
     /// Connects and immediately configures default output audio.
     /// `sample_rate`: usually **24000** for OpenAI Realtime (safe default).
-    pub async fn connect(
-        cfg: &OpenAiConfig,
-        features: RealtimeFeatures,
-    ) -> Result<Self> {
+    pub async fn connect(cfg: &OpenAiConfig, features: RealtimeFeatures) -> Result<Self> {
         let mut ws_url = format!("{OPENAI_REALTIME_WS}?model={}", cfg.model_realtime);
         if features.enable_transcribe {
             ws_url = format!("{OPENAI_REALTIME_WS}?intent=transcription");
@@ -194,8 +191,12 @@ impl RealtimeClient {
     /// - want_text: audio with text (true) or audio only (false)
     /// - instructions: your instructions, ex. "Speak the reply clearly, naturally."
     pub async fn request_response(&mut self, want_text: bool, style: Option<&str>) -> Result<()> {
-        let modalities = if want_text { vec!["audio", "text"] } else { vec!["audio"] };
         let instructions = style.unwrap_or("Speak the reply clearly, naturally.");
+        let modalities = if want_text {
+            vec!["audio", "text"]
+        } else {
+            vec!["audio"]
+        };
         let msg = json!({
             "type": "response.create",
             "response": {
@@ -471,7 +472,6 @@ impl RealtimeClient {
         });
     }
 
-    
     // ----------------------------------------------------------------
     // Support TTS accumuration
 
