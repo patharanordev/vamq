@@ -8,8 +8,8 @@ use crate::queues::wsg_pub::WsSender;
 use anyhow::{Context, Result};
 use base64::{Engine as _, engine::general_purpose};
 use futures::{SinkExt, StreamExt};
-use secrecy::{ExposeSecret, SecretString};
-use serde_json::json;
+use secrecy::ExposeSecret;
+use serde_json::{self, json};
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     time::{Duration, Instant},
@@ -30,10 +30,16 @@ pub struct RealtimeClient {
 }
 
 impl RealtimeClient {
+    /// Helper to send a JSON message as a WS text frame.
+    #[inline]
+    async fn send_json(&mut self, v: serde_json::Value) -> Result<()> {
+        self.ws.send(Message::Text(v.to_string())).await?;
+        Ok(())
+    }
+
     /// Connects and immediately configures default output audio.
     /// `sample_rate`: usually **24000** for OpenAI Realtime (safe default).
     pub async fn connect(
-        secret: &SecretString,
         cfg: &OpenAiConfig,
         features: RealtimeFeatures,
     ) -> Result<Self> {
@@ -54,7 +60,7 @@ impl RealtimeClient {
             // OpenAI headers:
             .header(
                 "Authorization",
-                format!("Bearer {}", secret.expose_secret()),
+                format!("Bearer {}", cfg.api_key.expose_secret()),
             )
             .header("OpenAI-Beta", "realtime=v1")
             .header("User-Agent", "realtime-s2s-a2f/1.0")
@@ -141,11 +147,10 @@ impl RealtimeClient {
     /// Minimal reconnect helper (exponential backoff handled by caller)
     pub async fn reconnect(
         &mut self,
-        secret: &SecretString,
         cfg: &OpenAiConfig,
         features: RealtimeFeatures,
     ) -> Result<()> {
-        *self = Self::connect(secret, cfg, features).await?;
+        *self = Self::connect(cfg, features).await?;
         Ok(())
     }
 
@@ -181,25 +186,25 @@ impl RealtimeClient {
     /// Commit current buffered audio → triggers transcription + synthesis.
     pub async fn commit(&mut self) -> Result<()> {
         let msg = json!({ "type": "input_audio_buffer.commit" });
-        self.ws.send(Message::Text(msg.to_string())).await?;
+        self.send_json(msg).await?;
         Ok(())
     }
 
-    pub async fn request_response(&mut self, want_text: bool) -> Result<()> {
-        let modalities = if want_text {
-            vec!["audio", "text"]
-        } else {
-            vec!["audio"]
-        };
+    /// Request response from OpenAI:
+    /// - want_text: audio with text (true) or audio only (false)
+    /// - instructions: your instructions, ex. "Speak the reply clearly, naturally."
+    pub async fn request_response(&mut self, want_text: bool, style: Option<&str>) -> Result<()> {
+        let modalities = if want_text { vec!["audio", "text"] } else { vec!["audio"] };
+        let instructions = style.unwrap_or("Speak the reply clearly, naturally.");
         let msg = json!({
             "type": "response.create",
             "response": {
                 "modalities": modalities,
                 // optional steering:
-                "instructions": "Speak the reply naturally."
+                "instructions": instructions
             }
         });
-        self.ws.send(Message::Text(msg.to_string())).await?;
+        self.send_json(msg).await?;
         Ok(())
     }
 
@@ -464,5 +469,75 @@ impl RealtimeClient {
                 tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
             }
         });
+    }
+
+    
+    // ----------------------------------------------------------------
+    // Support TTS accumuration
+
+    /// One-shot TTS using the SAME Realtime session.
+    ///
+    /// This is the best-practice Realtime pattern:
+    /// 1) create a conversation item with `input_text`
+    /// 2) request an audio response
+    pub async fn speak_text(&mut self, text: &str, style: Option<&str>) -> Result<()> {
+        if text.trim().is_empty() {
+            return Ok(());
+        }
+
+        let msg = json!({
+            "type": "conversation.item.create",
+            "item": {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    { "type": "input_text", "text": text }
+                ]
+            }
+        });
+        self.send_json(msg).await?;
+
+        self.request_response(false, style).await?;
+        Ok(())
+    }
+
+    /// Start a streaming TTS turn for chunked LLM output.
+    /// Returns a client-side `item_id` you can reuse for appends.
+    pub async fn begin_streaming_speech(&mut self, item_id: &str) -> Result<()> {
+        let msg = json!({
+            "type": "conversation.item.create",
+            "item": {
+                "id": item_id,
+                "type": "message",
+                "role": "assistant",
+                "content": []
+            }
+        });
+        self.send_json(msg).await?;
+        Ok(())
+    }
+
+    /// Append one chunk to an existing streaming speech item.
+    /// Use chunk sizes like ~80–240 chars (phrase/sentence), not per-token.
+    pub async fn append_streaming_speech(&mut self, item_id: &str, chunk: &str) -> Result<()> {
+        if chunk.is_empty() {
+            return Ok(());
+        }
+        let msg = json!({
+            "type": "conversation.item.append",
+            "item_id": item_id,
+            "content": [
+                { "type": "output_text", "text": chunk }
+            ]
+        });
+        self.send_json(msg).await?;
+        Ok(())
+    }
+
+    /// Convenience: begin audio streaming for the current conversation state.
+    /// Call ONCE per assistant turn, then keep appending chunks.
+    pub async fn start_audio_stream_for_turn(&mut self, style: Option<&str>) -> Result<()> {
+        self.request_response(false, style).await?;
+        Ok(())
     }
 }

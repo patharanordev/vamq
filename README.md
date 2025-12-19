@@ -102,7 +102,7 @@ def send(self, header:dict, payload:bytes):
     self.seq += 1
 ```
 
-### OpenAI
+### OpenAI: Speech-to-X
 
 Assume you set data criteria look like this:
 
@@ -158,7 +158,6 @@ pub async fn run() -> Result<()> {
         sample_rate: 24_000
     };
     let client = RealtimeClient::connect(
-        &cfg.api_key, 
         &cfg,
         RealtimeFeatures::from_profile(RealtimeProfile::S2S)
     )
@@ -300,6 +299,72 @@ async fn handle_event(
     }
 
     Ok(())
+}
+```
+
+### OpenAI: Text-to-Speech
+
+We provide guarding for convert text to speech to prevent sending many tokens to TTS service.
+
+Initial:
+
+```rs
+let item_id = format!("asst_{}", uuid::Uuid::new_v4());
+let mut guard = TtsChunkGuard::with_limits(
+    70,   // min_chars → early speech
+    220,  // max_chars
+    std::time::Duration::from_millis(250),
+);
+
+{
+    let mut c = client.lock().await;
+
+    // Create ONE assistant message item
+    c.begin_streaming_speech(&item_id).await?;
+
+    // Tell OpenAI: "this turn will produce AUDIO"
+    c.start_audio_stream_for_turn(Some(
+        "Speak naturally, clear pacing, friendly tone."
+    )).await?;
+}
+```
+
+Usage:
+
+```rs
+let llm_chunks = vec![
+    "Sure—let me explain how this works.",
+    " The system buffers your audio input",
+    " and converts it into structured events,",
+    " which are then processed in real time.",
+    " Finally, the output is streamed to Audio2Face.",
+];
+
+let mut first_chunk = true;
+
+for chunk in llm_chunks {
+    // 🚀 Make speech start ASAP
+    if first_chunk {
+        first_chunk = false;
+
+        // Append immediately → speech can start
+        client
+            .lock()
+            .await
+            .append_streaming_speech(&item_id, chunk)
+            .await?;
+
+        continue;
+    }
+
+    // Normal guarded flow
+    if let Some(to_append) = guard.push(chunk) {
+        client
+            .lock()
+            .await
+            .append_streaming_speech(&item_id, &to_append)
+            .await?;
+    }
 }
 ```
 
