@@ -189,7 +189,7 @@ impl RealtimeClient {
 
     /// Request response from OpenAI:
     /// - want_text: audio with text (true) or audio only (false)
-    /// - instructions: your instructions, ex. "Speak the reply clearly, naturally."
+    /// - style: your instructions, ex. "Speak the reply clearly, naturally."
     pub async fn request_response(&mut self, want_text: bool, style: Option<&str>) -> Result<()> {
         let instructions = style.unwrap_or("Speak the reply clearly, naturally.");
         let modalities = if want_text {
@@ -480,7 +480,7 @@ impl RealtimeClient {
     /// This is the best-practice Realtime pattern:
     /// 1) create a conversation item with `input_text`
     /// 2) request an audio response
-    pub async fn speak_text(&mut self, text: &str, style: Option<&str>) -> Result<()> {
+    pub async fn tts(&mut self, text: &str, style: Option<&str>) -> Result<()> {
         if text.trim().is_empty() {
             return Ok(());
         }
@@ -497,47 +497,8 @@ impl RealtimeClient {
         });
         self.send_json(msg).await?;
 
-        self.request_response(false, style).await?;
-        Ok(())
-    }
-
-    /// Start a streaming TTS turn for chunked LLM output.
-    /// Returns a client-side `item_id` you can reuse for appends.
-    pub async fn begin_streaming_speech(&mut self, item_id: &str) -> Result<()> {
-        let msg = json!({
-            "type": "conversation.item.create",
-            "item": {
-                "id": item_id,
-                "type": "message",
-                "role": "assistant",
-                "content": []
-            }
-        });
-        self.send_json(msg).await?;
-        Ok(())
-    }
-
-    /// Append one chunk to an existing streaming speech item.
-    /// Use chunk sizes like ~80–240 chars (phrase/sentence), not per-token.
-    pub async fn append_streaming_speech(&mut self, item_id: &str, chunk: &str) -> Result<()> {
-        if chunk.is_empty() {
-            return Ok(());
-        }
-        let msg = json!({
-            "type": "conversation.item.append",
-            "item_id": item_id,
-            "content": [
-                { "type": "output_text", "text": chunk }
-            ]
-        });
-        self.send_json(msg).await?;
-        Ok(())
-    }
-
-    /// Convenience: begin audio streaming for the current conversation state.
-    /// Call ONCE per assistant turn, then keep appending chunks.
-    pub async fn start_audio_stream_for_turn(&mut self, style: Option<&str>) -> Result<()> {
-        self.request_response(false, style).await?;
+        // Conversation requires text or audio+text
+        self.request_response(true, style).await?;
         Ok(())
     }
 }

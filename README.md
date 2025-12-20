@@ -316,22 +316,7 @@ let mut guard = TtsChunkGuard::with_limits(
     std::time::Duration::from_millis(250),
 );
 
-{
-    let mut c = client.lock().await;
-
-    // Create ONE assistant message item
-    c.begin_streaming_speech(&item_id).await?;
-
-    // Tell OpenAI: "this turn will produce AUDIO"
-    c.start_audio_stream_for_turn(Some(
-        "Speak naturally, clear pacing, friendly tone."
-    )).await?;
-}
-```
-
-Usage:
-
-```rs
+// Assume we have this chunk
 let llm_chunks = vec![
     "Sure—let me explain how this works.",
     " The system buffers your audio input",
@@ -339,32 +324,22 @@ let llm_chunks = vec![
     " which are then processed in real time.",
     " Finally, the output is streamed to Audio2Face.",
 ];
+```
 
-let mut first_chunk = true;
+Usage:
 
+```rs
 for chunk in llm_chunks {
-    // 🚀 Make speech start ASAP
-    if first_chunk {
-        first_chunk = false;
+    if let Some(text) = guard.push(&chunk) {
+        // conversation.item.create
+        client.tts(text, None).await?;
 
-        // Append immediately → speech can start
-        client
-            .lock()
-            .await
-            .append_streaming_speech(&item_id, chunk)
-            .await?;
-
-        continue;
+        // wait until server says response.done before sending next text
     }
+}
 
-    // Normal guarded flow
-    if let Some(to_append) = guard.push(chunk) {
-        client
-            .lock()
-            .await
-            .append_streaming_speech(&item_id, &to_append)
-            .await?;
-    }
+if let Some(last) = guard.finish() {
+    // same create + response.create + wait_done
 }
 ```
 

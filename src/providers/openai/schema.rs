@@ -30,6 +30,7 @@ pub enum RtEvent {
 pub enum RealtimeProfile {
     S2S,
     TRANSCRIBE,
+    TTS,
 }
 
 #[derive(Clone, Debug)]
@@ -79,6 +80,14 @@ impl RealtimeFeatures {
                 enable_conversation: false,
                 enable_transcribe: true,
                 enable_input_transcription: true,
+                enable_output_audio_transcript: false,
+                use_server_vad: false,
+            },
+            RealtimeProfile::TTS => Self {
+                profile,
+                enable_conversation: true,
+                enable_transcribe: false,
+                enable_input_transcription: false,
                 enable_output_audio_transcript: false,
                 use_server_vad: false,
             },
