@@ -22,11 +22,13 @@ jobs:
     - name: Validate syntax
       run: |
         cargo fmt --all -- --check
-        cargo clippy -- -D warnings
+        cargo clippy --locked -- -D warnings
     - name: Build
       run: cargo build --locked --verbose
     - name: Run tests
       run: cargo test --locked --verbose
+    - name: Ensure lockfile unchanged
+      run: git diff --exit-code Cargo.lock
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build_test
