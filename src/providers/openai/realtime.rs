@@ -481,10 +481,13 @@ impl RealtimeClient {
     /// 1) create a conversation item with `input_text`
     /// 2) request an audio response
     pub async fn tts(&mut self, text: &str, style: Option<&str>) -> Result<()> {
-        if text.trim().is_empty() {
+        let t = text.trim();
+        if t.is_empty() {
             return Ok(());
         }
 
+        // Put the exact text in a tag to reduce accidental edits
+        let say = format!("<say>{}</say>", t);
         let msg = json!({
             "type": "conversation.item.create",
             "item": {
@@ -496,9 +499,37 @@ impl RealtimeClient {
             }
         });
         self.send_json(msg).await?;
+        // Keep using conversation item create (as you already do)
+        let msg = json!({
+            "type": "conversation.item.create",
+            "item": {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    { "type": "input_text", "text": say }
+                ]
+            }
+        });
+        self.send_json(msg).await?;
 
-        // Conversation requires text or audio+text
-        self.request_response(true, style).await?;
+        // IMPORTANT: your system currently rejects audio-only, so request both audio+text
+        // (If your request_response already does output_modalities properly, keep it.
+        // Otherwise, change request_response to output_modalities.)
+        let modalities = vec!["audio", "text"];
+        let instructions = style.unwrap_or(
+            "You are a text-to-speech renderer. Read aloud EXACTLY the text inside <say>...</say>. \
+            Do not add any words. Do not remove any words. Do not paraphrase. Do not say acknowledgements.",
+        );
+        let msg = json!({
+            "type": "response.create",
+            "response": {
+                "output_modalities": modalities,
+                "instructions": instructions,
+                "temperature": 0
+            }
+        });
+        self.send_json(msg).await?;
+
         Ok(())
     }
 }
