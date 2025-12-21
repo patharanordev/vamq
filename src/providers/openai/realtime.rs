@@ -486,8 +486,6 @@ impl RealtimeClient {
             return Ok(());
         }
 
-        // Put the exact text in a tag to reduce accidental edits
-        let say = format!("<say>{}</say>", t);
         let msg = json!({
             "type": "conversation.item.create",
             "item": {
@@ -499,23 +497,16 @@ impl RealtimeClient {
             }
         });
         self.send_json(msg).await?;
-        // Keep using conversation item create (as you already do)
-        let msg = json!({
-            "type": "conversation.item.create",
-            "item": {
-                "type": "message",
-                "role": "user",
-                "content": [
-                    { "type": "input_text", "text": say }
-                ]
-            }
-        });
-        self.send_json(msg).await?;
+        // -------------------------------------------------------
 
         let modalities = vec!["audio", "text"];
         let instructions = style.unwrap_or(
-            "You are a text-to-speech renderer. Read aloud EXACTLY the text inside <say>...</say>. \
-            Do not add any words. Do not remove any words. Do not paraphrase. Do not say acknowledgements.",
+            "Multilingual TTS. \
+            Read text EXACTLY as written. \
+            Preserve technical terms, numbers, and acronyms. \
+            Switch pronunciation by language. \
+            Use prosody for emotion only. \
+            No extra words.",
         );
         let msg = json!({
             "type": "response.create",
