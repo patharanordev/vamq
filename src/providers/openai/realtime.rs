@@ -521,8 +521,7 @@ impl RealtimeClient {
             "type": "response.create",
             "response": {
                 "modalities": modalities,
-                "instructions": instructions,
-                "temperature": 0
+                "instructions": instructions
             }
         });
         self.send_json(msg).await?;
