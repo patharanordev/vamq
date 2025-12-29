@@ -1,5 +1,6 @@
 use std::{future::Future, sync::Arc};
 
+use crate::providers::openai::constants::{OPENAI_REALTIME_WS, REALTIME_TTS_INSTRUCTION};
 use crate::providers::openai::{
     config::OpenAiConfig,
     schema::{RealtimeFeatures, RtEvent},
@@ -17,8 +18,6 @@ use tokio::{
 use tokio_tungstenite::tungstenite::{handshake::client::generate_key, http::Request};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{debug, error, info, warn};
-
-const OPENAI_REALTIME_WS: &str = "wss://api.openai.com/v1/realtime";
 
 pub type SharedClient = Arc<tokio::sync::Mutex<RealtimeClient>>;
 pub struct RealtimeClient {
@@ -500,14 +499,7 @@ impl RealtimeClient {
         // -------------------------------------------------------
 
         let modalities = vec!["audio", "text"];
-        let instructions = style.unwrap_or(
-            "Multilingual TTS. \
-            Read text EXACTLY as written. \
-            Preserve technical terms, numbers, and acronyms. \
-            Switch pronunciation by language. \
-            Use prosody for emotion only. \
-            No extra words.",
-        );
+        let instructions = style.unwrap_or(REALTIME_TTS_INSTRUCTION);
         let msg = json!({
             "type": "response.create",
             "response": {
