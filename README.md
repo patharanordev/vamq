@@ -332,7 +332,7 @@ Usage:
 for chunk in llm_chunks {
     if let Some(text) = guard.push(&chunk) {
         // conversation.item.create
-        client.tts(text, None).await?;
+        client.tts(format!("<<<READ>>>{}<<<END>>>", text).as_str(), None).await?;
 
         // wait until server says response.done before sending next text
     }
@@ -342,6 +342,25 @@ if let Some(last) = guard.finish() {
     // same create + response.create + wait_done
 }
 ```
+
+> ---
+> IMPORTANT:
+>
+> `client.tts` uses instruction below to force OpenAI's realtime TTS read your content:
+>
+> ```rs
+> pub const REALTIME_TTS_INSTRUCTION: &str = r#"
+> Multilingual TTS.
+> Read ONLY text in <<<READ>>>…<<<END>>>.
+> No replies, no paraphrasing.
+> Auto-detect language.
+> If text starts with [emotion] or [emotion:intensity], DO NOT speak the tag; use prosody only.
+> "#;
+> ```
+>
+> So please adding `<<<READ>>>{}<<<END>>>` tag cover your content to ensure it will speech correctly. You can changing the instruction at the seconds argument.
+>
+> ---
 
 ## License
 
