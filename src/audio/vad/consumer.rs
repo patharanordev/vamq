@@ -1,7 +1,9 @@
+#[cfg(any(feature = "audio-upsampling", feature = "audio-upsampling-general"))]
 use crate::audio::{
     upsampling::general::rate16to24::Pcm16kTo24k,
     vad::schema::{VadCommit, VadHeader},
 };
+#[cfg(feature = "zmq")]
 use crate::queues::create_consumer;
 use anyhow::Result;
 use tracing::{debug, warn};

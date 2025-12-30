@@ -5,7 +5,10 @@ use crate::providers::openai::{
     config::OpenAiConfig,
     schema::{RealtimeFeatures, RtEvent},
 };
+
+#[cfg(feature = "ws")]
 use crate::queues::wsg_pub::WsSender;
+
 use anyhow::{Context, Result};
 use base64::{Engine as _, engine::general_purpose};
 use futures::{SinkExt, StreamExt};

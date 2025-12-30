@@ -1,8 +1,12 @@
 use tracing::warn;
 
+#[cfg(feature = "zmq")]
 pub mod ingress;
+
+#[cfg(feature = "ws")]
 pub mod wsg_pub;
 
+#[cfg(feature = "zmq")]
 pub fn create_consumer(address: &str) -> Option<zmq::Socket> {
     let maybe_pull: Option<zmq::Socket> = if address.is_empty() {
         None
