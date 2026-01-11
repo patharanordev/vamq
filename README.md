@@ -274,6 +274,13 @@ async fn handle_event(
         RtEvent::Completed => {
             debug!("completed – flushing remaining audio");
         }
+        RtEvent::PartDone(v) => {
+            debug!("realtime part.done – {}", v);
+        }
+        RtEvent::ResponseDone(v) => {
+            // end of stream response
+            debug!("realtime response.done – {}", v);
+        }
         RtEvent::Error(msg) => {
             error!("realtime error: {:?}", msg);
         }
