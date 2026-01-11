@@ -1,6 +1,6 @@
 [package]
 name = "vamq"
-version = "0.0.14"
+version = "0.0.15"
 edition = "2024"
 license = "MIT"
 description = "Consume audio chunk from Voice Activity Messaging via ZeroMQ."

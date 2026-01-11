@@ -32,4 +32,7 @@ pub use transform::framing::write_wav_pcm16_mono_24k;
 #[cfg(feature = "transform-datetime")]
 pub use transform::time::now_unix_nanos;
 #[cfg(feature = "transform-ue")]
-pub use transform::unrealengine::ueframer::UeFramer;
+pub use transform::unrealengine::{
+    audio_stream::{SharedUeAudioStream, UeAudioStream},
+    framer::UeFramer,
+};
