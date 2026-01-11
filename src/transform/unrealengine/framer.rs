@@ -38,6 +38,10 @@ impl UeFramer {
         self.buf.clear();
         Some(f32_to_le_bytes(&frame))
     }
+
+    pub fn reset(&mut self) {
+        self.buf.clear();
+    }
 }
 
 impl Default for UeFramer {

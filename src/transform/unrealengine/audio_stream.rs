@@ -17,6 +17,11 @@ impl UeAudioStream {
             framer: UeFramer::new(),
         })
     }
+
+    pub fn reset(&mut self) {
+        self.framer.reset();
+        self.resampler.reset();
+    }
 }
 
 pub type SharedUeAudioStream = Arc<Mutex<UeAudioStream>>;

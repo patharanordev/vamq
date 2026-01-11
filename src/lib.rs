@@ -26,7 +26,7 @@ pub use providers::openai::{
     tts::guard::TtsChunkGuard,
 };
 #[cfg(feature = "ws")]
-pub use queues::wsg_pub::{WsSender, connect_ws, ws_send_pcm16};
+pub use queues::wsg_pub::{WsSender, connect_ws, ws_send_bytes};
 #[cfg(feature = "transform-audio")]
 pub use transform::framing::write_wav_pcm16_mono_24k;
 #[cfg(feature = "transform-datetime")]

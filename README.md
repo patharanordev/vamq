@@ -249,7 +249,7 @@ async fn handle_event(
             // send PCM16 to UE
             // To prevents A2F crashes, if OpenAI delta > 4000 bytes, split it
             for chunk in bytes.chunks(4800) {
-                ws_send_pcm16(ws_sender, &chunk).await?;
+                ws_send_bytes(ws_sender, &chunk).await?;
             }
         }
         RtEvent::TextDelta(s) => {

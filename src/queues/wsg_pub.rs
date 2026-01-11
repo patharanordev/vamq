@@ -65,7 +65,7 @@ pub async fn connect_ws(url: &str) -> WsSender {
                         _ = read_task => {},
                     };
 
-                    // Clear sender so ws_send_pcm16 stops sending
+                    // Clear sender so ws_send_bytes stops sending
                     {
                         let mut guard = sender_clone.lock().await;
                         *guard = None;
@@ -104,11 +104,10 @@ pub async fn connect_ws(url: &str) -> WsSender {
     sender
 }
 
-/// Send raw PCM16 bytes to UE
-pub async fn ws_send_pcm16(ws: &WsSender, pcm: &[u8]) -> Result<()> {
+pub async fn ws_send_bytes(ws: &WsSender, payload: &[u8]) -> Result<()> {
     let guard = ws.lock().await;
     if let Some(tx) = &*guard {
-        tx.send(Message::Binary(pcm.to_vec()))?;
+        tx.send(Message::Binary(payload.to_vec()))?;
     }
     Ok(())
 }
