@@ -1,6 +1,6 @@
 [package]
 name = "vamq"
-version = "0.0.13"
+version = "0.0.14"
 edition = "2024"
 license = "MIT"
 description = "Consume audio chunk from Voice Activity Messaging via ZeroMQ."
@@ -9,7 +9,13 @@ readme = "README.md"
 
 [features]
 default = [
-    "audio-upsampling-general","vad-consumer","openai","zmq","ws","transform-audio","transform-datetime"
+    "audio-upsampling-general",
+    "vad-consumer",
+    "openai","zmq",
+    "ws",
+    "transform-audio",
+    "transform-datetime",
+    "transform-ue"
 ]
 audio-upsampling = ["vad", "vad-consumer", "dep:rubato"] # all audio upsampling methods, support others AI providers audio format
 audio-upsampling-general = ["vad", "vad-consumer", "dep:rubato"] # just only general audio upsampling methods
@@ -27,6 +33,7 @@ ws = [
 ]
 transform-audio = ["dep:byteorder"]
 transform-datetime = []
+transform-ue = ["audio-upsampling", "audio-upsampling-general"]
 
 [dependencies]
 anyhow = { version = "1.0.100" }

@@ -8,7 +8,11 @@ pub mod audio;
 pub mod providers;
 #[cfg(any(feature = "zmq", feature = "ws"))]
 pub mod queues;
-#[cfg(any(feature = "transform-audio", feature = "transform-datetime"))]
+#[cfg(any(
+    feature = "transform-audio",
+    feature = "transform-datetime",
+    feature = "transform-ue"
+))]
 pub mod transform;
 
 #[cfg(any(feature = "audio-upsampling", feature = "audio-upsampling-general"))]
@@ -27,3 +31,5 @@ pub use queues::wsg_pub::{WsSender, connect_ws, ws_send_pcm16};
 pub use transform::framing::write_wav_pcm16_mono_24k;
 #[cfg(feature = "transform-datetime")]
 pub use transform::time::now_unix_nanos;
+#[cfg(feature = "transform-ue")]
+pub use transform::unrealengine::ueframer::UeFramer;
