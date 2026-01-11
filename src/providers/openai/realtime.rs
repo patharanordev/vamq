@@ -241,6 +241,7 @@ impl RealtimeClient {
 
                         let etype = v.get("type").and_then(|t| t.as_str());
 
+                        // Ref. https://platform.openai.com/docs/api-reference/responses-streaming
                         match etype {
                             // ============================================================
                             // SESSION EVENTS
@@ -334,7 +335,8 @@ impl RealtimeClient {
                             // ============================================================
                             Some("response.audio.done")
                             | Some("response.audio_transcript.done")
-                            | Some("response.content_part.done") => Ok(RtEvent::Completed),
+                            | Some("response.content_part.done")
+                            | Some("response.output_item.done") => Ok(RtEvent::PartDone(v)),
 
                             // ============================================================
                             // COMPLETION OF ENTIRE RESPONSE
@@ -342,9 +344,8 @@ impl RealtimeClient {
                             // NEW: "response.done"
                             // OLD: "response.completed"
                             // ============================================================
-                            Some("response.done") | Some("response.completed") => {
-                                Ok(RtEvent::Completed)
-                            }
+                            Some("response.completed") => Ok(RtEvent::Completed),
+                            Some("response.done") => Ok(RtEvent::ResponseDone(v)),
 
                             // ============================================================
                             // INPUT AUDIO BUFFER COMMITTED
@@ -363,7 +364,6 @@ impl RealtimeClient {
                             // ============================================================
                             Some("response.created")
                             | Some("response.output_item.added")
-                            | Some("response.output_item.done")
                             | Some("conversation.item.created")
                             | Some("response.content_part.added") => Ok(RtEvent::Other(v)),
 

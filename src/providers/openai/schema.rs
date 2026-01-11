@@ -1,3 +1,5 @@
+use serde_json::Value;
+
 /// What you get back from `next_event()`
 /// #[non_exhaustive] means you can add new variants later without breaking external matches.
 #[derive(Debug, Clone, PartialEq)]
@@ -7,20 +9,26 @@ pub enum RtEvent {
     AudioDelta(Vec<u8>), // response.output_audio.delta
     TextDelta(String), // response.output_text.delta
 
-    // Transcript of user (when enable_input_transcription=true)
+    /// Transcript of user (when enable_input_transcription=true)
     UserTranscriptDelta(String),
     UserTranscriptFinal(String),
 
-    // Transcript of assistant (when enable_output_audio_transcript=true)
+    /// Transcript of assistant (when enable_output_audio_transcript=true)
     AssistantTranscriptDelta(String),
 
+    /// A part of audio, text, transcription and others done
+    PartDone(Value),
+
     /// The response is done (good place to rotate buffers/timestamps)
-    Completed, // response.completed
-    SessionCreated(serde_json::Value),
+    ResponseDone(Value),
+
+    /// response.completed
+    Completed,
+    SessionCreated(Value),
     /// OpenAI sent an error frame
     Error(String),
     /// Anything else you might want to log
-    Other(serde_json::Value),
+    Other(Value),
     /// Underlying socket closed
     Closed,
     Idle,
