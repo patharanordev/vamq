@@ -481,8 +481,7 @@ impl RealtimeClient {
     ///
     /// This is the best-practice Realtime pattern:
     /// 1) create a conversation item with `input_text`
-    /// 2) request an audio response
-    pub async fn tts(&mut self, text: &str, style: Option<&str>) -> Result<()> {
+    pub async fn tts(&mut self, text: &str) -> Result<()> {
         let t = text.trim();
         if t.is_empty() {
             return Ok(());
@@ -499,8 +498,12 @@ impl RealtimeClient {
             }
         });
         self.send_json(msg).await?;
-        // -------------------------------------------------------
 
+        Ok(())
+    }
+
+    /// 2) request an audio response
+    pub async fn request_speech(&mut self, style: Option<&str>) -> Result<()> {
         let modalities = vec!["audio", "text"];
         let instructions = style.unwrap_or(REALTIME_TTS_INSTRUCTION);
         let msg = json!({
