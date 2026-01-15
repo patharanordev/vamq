@@ -517,4 +517,16 @@ impl RealtimeClient {
 
         Ok(())
     }
+
+    /// cancel any response by id, or all responses if id is None
+    pub async fn cancel_response(&mut self, id: Option<String>) -> Result<()> {
+        let mut msg = json!({ "type": "response.cancel" });
+        if let Some(id) = id {
+            msg["response_id"] = id.into();
+        }
+
+        self.send_json(msg).await?;
+
+        Ok(())
+    }
 }
