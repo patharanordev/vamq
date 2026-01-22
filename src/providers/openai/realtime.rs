@@ -41,8 +41,14 @@ impl RealtimeClient {
 
     /// Connects and immediately configures default output audio.
     /// `sample_rate`: usually **24000** for OpenAI Realtime (safe default).
-    pub async fn connect(cfg: &OpenAiConfig, features: RealtimeFeatures) -> Result<Self> {
+    pub async fn connect(
+        cfg: &OpenAiConfig,
+        features: RealtimeFeatures,
+        instructions: Option<&str>,
+    ) -> Result<Self> {
         let mut ws_url = format!("{OPENAI_REALTIME_WS}?model={}", cfg.model_realtime);
+        let instructions = instructions.unwrap_or("You are a helpful multiple languages speaking assistant, reply in the user’s language.");
+
         if features.enable_transcribe {
             ws_url = format!("{OPENAI_REALTIME_WS}?intent=transcription");
         }
@@ -78,9 +84,7 @@ impl RealtimeClient {
             session.insert("voice".into(), json!("alloy"));
             session.insert("input_audio_format".into(), json!("pcm16"));
 
-            session.insert("instructions".into(), json!(
-                "You are a helpful multiple languages speaking assistant, reply in the user’s language."
-            ));
+            session.insert("instructions".into(), json!(instructions));
             session.insert("modalities".into(), json!(["audio", "text"]));
             session.insert("output_audio_format".into(), json!("pcm16"));
 
@@ -148,8 +152,9 @@ impl RealtimeClient {
         &mut self,
         cfg: &OpenAiConfig,
         features: RealtimeFeatures,
+        instructions: Option<&str>,
     ) -> Result<()> {
-        *self = Self::connect(cfg, features).await?;
+        *self = Self::connect(cfg, features, instructions).await?;
         Ok(())
     }
 
