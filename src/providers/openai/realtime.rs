@@ -1,6 +1,7 @@
 use std::{future::Future, sync::Arc};
 
 use crate::providers::openai::constants::{OPENAI_REALTIME_WS, REALTIME_TTS_INSTRUCTION};
+use crate::providers::openai::schema::ResponseOptions;
 use crate::providers::openai::{
     config::OpenAiConfig,
     schema::{RealtimeClientOptions, RealtimeFeatures, RtEvent},
@@ -13,7 +14,7 @@ use anyhow::{Context, Result};
 use base64::{Engine as _, engine::general_purpose};
 use futures::{SinkExt, StreamExt};
 use secrecy::ExposeSecret;
-use serde_json::{self, json};
+use serde_json::{self, Value, json};
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     time::{Duration, Instant},
@@ -34,7 +35,7 @@ pub struct RealtimeClient {
 impl RealtimeClient {
     /// Helper to send a JSON message as a WS text frame.
     #[inline]
-    async fn send_json(&mut self, v: serde_json::Value) -> Result<()> {
+    async fn send_json(&mut self, v: Value) -> Result<()> {
         self.ws.send(Message::Text(v.to_string())).await?;
         Ok(())
     }
@@ -149,7 +150,7 @@ impl RealtimeClient {
         Ok(())
     }
 
-    fn turn_detection(features: &RealtimeFeatures) -> serde_json::Value {
+    fn turn_detection(features: &RealtimeFeatures) -> Value {
         if features.use_server_vad {
             json!({
                 "type": "server_vad",
@@ -158,7 +159,7 @@ impl RealtimeClient {
                 "silence_duration_ms": 500
             })
         } else {
-            serde_json::Value::Null
+            Value::Null
         }
     }
 
@@ -186,25 +187,55 @@ impl RealtimeClient {
     }
 
     /// Request response from OpenAI:
-    /// - want_text: audio with text (true) or audio only (false)
-    /// - style: your instructions, ex. "Speak the reply clearly, naturally."
-    pub async fn request_response(&mut self, want_text: bool, style: Option<&str>) -> Result<()> {
-        let instructions = style.unwrap_or("Speak the reply clearly, naturally.");
-        let modalities = if want_text {
-            vec!["audio", "text"]
-        } else {
-            vec!["audio"]
-        };
-        let msg = json!({
-            "type": "response.create",
-            "response": {
-                "modalities": modalities,
-                // optional steering:
-                "instructions": instructions
+    /// - default conversation - client.request_response(None).await?;
+    /// - OOB mode:
+    ///
+    /// ```rs
+    /// let oob_opts = ResponseOptions {
+    ///     instructions: "Transcribe the audio verbatim in Thai. Numbers as text: หนึ่ง, สอง, สาม.".to_string(),
+    ///     item_ids: Some(vec!["item_abc123".to_string()]), // ID ของเสียงที่ฟังไม่ออก
+    ///     is_out_of_band: true,
+    /// };
+    ///
+    /// client.request_response(Some(oob_opts)).await?;
+    /// ```
+    pub async fn request_response(&mut self, opts: Option<ResponseOptions>) -> anyhow::Result<()> {
+        let msg = match opts {
+            // Case 1: Standard Response
+            None => json!({ "type": "response.create" }),
+
+            // Case 2: Customized/OOB Response - customized or Manual STT
+            Some(o) => {
+                let mut response_obj = json!({
+                    "instructions": o.instructions,
+                    "metadata": {
+                        "purpose": "User turn transcription"
+                    }
+                });
+
+                if o.is_out_of_band {
+                    response_obj["conversation"] = json!("none");
+                    response_obj["modalities"] = json!(["text"]); // OOB Text only
+                }
+
+                // ถ้ามีการระบุ Item IDs (เช่น แกะเสียงเฉพาะช่วง)
+                if let Some(ids) = o.item_ids {
+                    let input_items: Vec<Value> = ids
+                        .into_iter()
+                        .map(|id| json!({ "type": "item_reference", "id": id }))
+                        .collect();
+                    response_obj["input"] = json!(input_items);
+                }
+
+                json!({
+                    "type": "response.create",
+                    "response": response_obj
+                })
             }
-        });
-        self.send_json(msg).await?;
-        Ok(())
+        };
+
+        debug!("Sending response.create: {}", msg.to_string());
+        self.send_json(msg).await
     }
 
     /// Non-blocking heartbeat/ping (~15s) to keep connection alive through proxies/NATs.

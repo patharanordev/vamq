@@ -161,3 +161,9 @@ impl Default for RealtimeClientOptions {
         }
     }
 }
+
+pub struct ResponseOptions {
+    pub instructions: String,
+    pub item_ids: Option<Vec<String>>,
+    pub is_out_of_band: bool, // ถ้า true จะเซต conversation: "none"
+}
