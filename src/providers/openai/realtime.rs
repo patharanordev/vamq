@@ -3,7 +3,7 @@ use std::{future::Future, sync::Arc};
 use crate::providers::openai::constants::{OPENAI_REALTIME_WS, REALTIME_TTS_INSTRUCTION};
 use crate::providers::openai::{
     config::OpenAiConfig,
-    schema::{RealtimeFeatures, RtEvent},
+    schema::{RealtimeClientOptions, RealtimeFeatures, RtEvent},
 };
 
 #[cfg(feature = "ws")]
@@ -41,15 +41,10 @@ impl RealtimeClient {
 
     /// Connects and immediately configures default output audio.
     /// `sample_rate`: usually **24000** for OpenAI Realtime (safe default).
-    pub async fn connect(
-        cfg: &OpenAiConfig,
-        features: RealtimeFeatures,
-        instructions: Option<&str>,
-    ) -> Result<Self> {
+    pub async fn connect(cfg: &OpenAiConfig, options: RealtimeClientOptions) -> Result<Self> {
         let mut ws_url = format!("{OPENAI_REALTIME_WS}?model={}", cfg.model_realtime);
-        let instructions = instructions.unwrap_or("You are a helpful multiple languages speaking assistant, reply in the user’s language.");
 
-        if features.enable_transcribe {
+        if options.features.enable_transcribe {
             ws_url = format!("{OPENAI_REALTIME_WS}?intent=transcription");
         }
 
@@ -80,33 +75,34 @@ impl RealtimeClient {
         let mut session_cfg = json!({});
         let mut session = serde_json::Map::new();
 
-        if features.enable_conversation {
+        if options.features.enable_conversation {
             session.insert("voice".into(), json!("alloy"));
             session.insert("input_audio_format".into(), json!("pcm16"));
 
-            session.insert("instructions".into(), json!(instructions));
+            session.insert(
+                "instructions".into(),
+                json!(options.instructions.unwrap_or_default()),
+            );
             session.insert("modalities".into(), json!(["audio", "text"]));
             session.insert("output_audio_format".into(), json!("pcm16"));
 
             // Auto-VAD
             session.insert(
                 "turn_detection".into(),
-                RealtimeClient::turn_detection(&features),
+                RealtimeClient::turn_detection(&options.features),
             );
 
             // Input transcription of user (defaults off) :contentReference[oaicite:8]{index=8}
-            if features.enable_input_transcription {
+            if options.features.enable_input_transcription {
                 session.insert(
                     "input_audio_transcription".into(),
-                    json!({
-                        "model": cfg.model_transcribe
-                    }),
+                    json!(options.input_audio_transcription),
                 );
             }
 
             // Output audio transcript (for debug)
             // Ref. event response.output_audio_transcript.delta :contentReference[oaicite:10]{index=10}
-            if features.enable_output_audio_transcript {
+            if options.features.enable_output_audio_transcript {
                 session.insert(
                     "include".into(),
                     json!(["response.output_audio_transcript"]),
@@ -117,17 +113,13 @@ impl RealtimeClient {
                 "type": "session.update",
                 "session": session
             });
-        } else if features.enable_transcribe {
+        } else if options.features.enable_transcribe {
             session_cfg = json!({
                 "type": "transcription_session.update",
                 "session": {
                     "input_audio_format": "pcm16",
-                    "input_audio_transcription": {
-                        "model": cfg.model_transcribe,
-                        // "prompt": "",
-                        // "language": ""
-                    },
-                    "turn_detection": RealtimeClient::turn_detection(&features),
+                    "input_audio_transcription": options.input_audio_transcription,
+                    "turn_detection": RealtimeClient::turn_detection(&options.features),
                     "input_audio_noise_reduction": {
                         "type": "near_field"
                     },
@@ -151,10 +143,9 @@ impl RealtimeClient {
     pub async fn reconnect(
         &mut self,
         cfg: &OpenAiConfig,
-        features: RealtimeFeatures,
-        instructions: Option<&str>,
+        options: RealtimeClientOptions,
     ) -> Result<()> {
-        *self = Self::connect(cfg, features, instructions).await?;
+        *self = Self::connect(cfg, options).await?;
         Ok(())
     }
 

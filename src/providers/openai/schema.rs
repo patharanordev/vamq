@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// What you get back from `next_event()`
@@ -99,6 +100,64 @@ impl RealtimeFeatures {
                 enable_output_audio_transcript: false,
                 use_server_vad: false,
             },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InputAudioTranscription {
+    pub model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+}
+
+impl Default for InputAudioTranscription {
+    fn default() -> Self {
+        Self {
+            model: "whisper-1".to_string(),
+            prompt: None,
+            language: None,
+        }
+    }
+}
+
+pub struct RealtimeClientOptions {
+    pub features: RealtimeFeatures,
+    pub instructions: Option<String>,
+    pub input_audio_transcription: Option<InputAudioTranscription>,
+}
+
+impl RealtimeClientOptions {
+    pub fn new(features: RealtimeFeatures) -> Self {
+        Self {
+            features,
+            instructions: None,
+            input_audio_transcription: None,
+        }
+    }
+
+    pub fn with_instructions(mut self, instructions: &str) -> Self {
+        self.instructions = Some(instructions.to_string());
+        self
+    }
+
+    pub fn with_input_audio_transcription(
+        mut self,
+        input_audio_transcription: InputAudioTranscription,
+    ) -> Self {
+        self.input_audio_transcription = Some(input_audio_transcription);
+        self
+    }
+}
+
+impl Default for RealtimeClientOptions {
+    fn default() -> Self {
+        Self {
+            features: RealtimeFeatures::default(),
+            instructions: Some("You are a helpful multiple languages speaking assistant, reply in the user’s language.".to_string()),
+            input_audio_transcription: None,
         }
     }
 }

@@ -13,6 +13,10 @@ pub struct OpenAiConfig {
     pub model_transcribe: String,
     #[serde(default = "default_sample_rate")]
     pub sample_rate: u32,
+    #[serde(default)]
+    pub transcription_prompt: Option<String>,
+    #[serde(default)]
+    pub transcription_language: Option<String>,
 }
 
 fn default_model_realtime() -> String {

@@ -131,7 +131,7 @@ use vamq::{
     }
     providers::openai::{
         RealtimeClient, RtEvent, SharedClient, 
-        schema::{RealtimeFeatures, RealtimeProfile}
+        schema::{RealtimeClientOptions, RealtimeFeatures, RealtimeProfile}
     }
 };
 
@@ -159,7 +159,7 @@ pub async fn run() -> Result<()> {
     };
     let client = RealtimeClient::connect(
         &cfg,
-        RealtimeFeatures::from_profile(RealtimeProfile::S2S)
+        RealtimeClientOptions::new(RealtimeFeatures::from_profile(RealtimeProfile::S2S))
     )
     .await
     .map_err(|e| { error!("Cannot connect to OpenAI's API: {:?}", e); e })?;
