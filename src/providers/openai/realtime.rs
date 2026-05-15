@@ -63,7 +63,7 @@ impl RealtimeClient {
                 "Authorization",
                 format!("Bearer {}", cfg.api_key.expose_secret()),
             )
-            .header("OpenAI-Beta", "realtime=v1")
+            // .header("OpenAI-Beta", "realtime=v1")
             .header("User-Agent", "realtime-s2s-a2f/1.0")
             .body(())?;
 
