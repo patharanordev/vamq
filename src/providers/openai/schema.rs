@@ -26,6 +26,7 @@ pub enum RtEvent {
     /// response.completed
     Completed,
     SessionCreated(Value),
+    SessionUpdated(Value),
     /// OpenAI sent an error frame
     Error(String),
     /// Anything else you might want to log

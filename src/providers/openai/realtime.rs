@@ -4,7 +4,7 @@ use crate::providers::openai::constants::{OPENAI_REALTIME_WS, REALTIME_TTS_INSTR
 use crate::providers::openai::schema::ResponseOptions;
 use crate::providers::openai::{
     config::OpenAiConfig,
-    schema::{RealtimeClientOptions, RealtimeFeatures, RtEvent},
+    schema::{RealtimeClientOptions, RtEvent},
 };
 
 #[cfg(feature = "ws")]
@@ -40,14 +40,12 @@ impl RealtimeClient {
         Ok(())
     }
 
-    /// Connects and immediately configures default output audio.
-    /// `sample_rate`: usually **24000** for OpenAI Realtime (safe default).
+    /// Connects to the OpenAI Realtime GA API and performs the initial session handshake.
+    ///
+    /// This method establishes a WebSocket connection, awaits the `session.created` event,
+    /// and configures the session parameters based on the provided `RealtimeClientOptions`.
     pub async fn connect(cfg: &OpenAiConfig, options: RealtimeClientOptions) -> Result<Self> {
-        let mut ws_url = format!("{OPENAI_REALTIME_WS}?model={}", cfg.model_realtime);
-
-        if options.features.enable_transcribe {
-            ws_url = format!("{OPENAI_REALTIME_WS}?intent=transcription");
-        }
+        let ws_url = format!("{}?model={}", OPENAI_REALTIME_WS, cfg.model_realtime);
 
         // You MUST include the standard WS upgrade headers when you pass a Request.
         let req = Request::builder()
@@ -72,66 +70,72 @@ impl RealtimeClient {
             .await
             .context("connect_async failed (check TLS features and model name)")?;
 
-        // Configure output audio (pcm16 @ sample_rate)
-        let mut session_cfg = json!({});
-        let mut session = serde_json::Map::new();
-
-        if options.features.enable_conversation {
-            session.insert("voice".into(), json!("alloy"));
-            session.insert("input_audio_format".into(), json!("pcm16"));
-
-            session.insert(
-                "instructions".into(),
-                json!(options.instructions.unwrap_or_default()),
-            );
-            session.insert("modalities".into(), json!(["audio", "text"]));
-            session.insert("output_audio_format".into(), json!("pcm16"));
-
-            // Auto-VAD
-            session.insert(
-                "turn_detection".into(),
-                RealtimeClient::turn_detection(&options.features),
-            );
-
-            // Input transcription of user (defaults off) :contentReference[oaicite:8]{index=8}
-            if options.features.enable_input_transcription {
-                session.insert(
-                    "input_audio_transcription".into(),
-                    json!(options.input_audio_transcription),
-                );
-            }
-
-            // Output audio transcript (for debug)
-            // Ref. event response.output_audio_transcript.delta :contentReference[oaicite:10]{index=10}
-            if options.features.enable_output_audio_transcript {
-                session.insert(
-                    "include".into(),
-                    json!(["response.output_audio_transcript"]),
-                );
-            }
-
-            session_cfg = json!({
-                "type": "session.update",
-                "session": session
-            });
-        } else if options.features.enable_transcribe {
-            session_cfg = json!({
-                "type": "transcription_session.update",
-                "session": {
-                    "input_audio_format": "pcm16",
-                    "input_audio_transcription": options.input_audio_transcription,
-                    "turn_detection": RealtimeClient::turn_detection(&options.features),
-                    "input_audio_noise_reduction": {
-                        "type": "near_field"
-                    },
-                    // "include": [
-                    //     "item.input_audio_transcription.logprobs"
-                    // ]
+        // 1. Wait for session.created (it always comes first)
+        match tokio::time::timeout(Duration::from_secs(5), ws.next()).await {
+            Ok(Some(Ok(Message::Text(txt)))) => {
+                let v: Value = serde_json::from_str(&txt).unwrap_or(Value::Null);
+                if v.get("type").and_then(|t| t.as_str()) != Some("session.created") {
+                    warn!("Expected session.created, got: {}", txt);
+                } else {
+                    debug!("Session established: {}", v["session"]["id"]);
                 }
-            });
+            }
+            other => {
+                warn!("Did not receive session.created in time: {:?}", other);
+            }
         }
 
-        debug!("session_cfg: {:?}", session_cfg.to_string());
+        // 2. Configure session
+        let mut session = serde_json::Map::new();
+
+        // Required GA field: purpose of the session
+        session.insert("type".into(), json!("realtime"));
+
+        // Standard GA fields: nested audio configuration
+        session.insert(
+            "audio".into(),
+            json!({
+                "input": {
+                    "format": { "type": "audio/pcm", "rate": 24000 }
+                },
+                "output": {
+                    "format": { "type": "audio/pcm", "rate": 24000 }
+                }
+            }),
+        );
+
+        // Modalities
+        if options.features.enable_conversation {
+            if let Some(instr) = &options.instructions {
+                session.insert("instructions".into(), json!(instr));
+            }
+            session.insert("output_modalities".into(), json!(["audio"]));
+        } else if options.features.enable_transcribe {
+            session.insert("output_modalities".into(), json!(["text"]));
+        }
+
+        // Input transcription
+        if options.features.enable_input_transcription {
+            if let Some(trans) = &options.input_audio_transcription {
+                session.insert("input_audio_transcription".into(), json!(trans));
+            } else {
+                // Default if enabled but not provided
+                session.insert(
+                    "input_audio_transcription".into(),
+                    json!({ "model": "whisper-1" }),
+                );
+            }
+        }
+
+        let session_cfg = json!({
+            "type": "session.update",
+            "session": session
+        });
+
+        info!(
+            "Initializing session: modalities={:?}",
+            session.get("output_modalities")
+        );
         ws.send(Message::Text(session_cfg.to_string())).await?;
 
         Ok(Self {
@@ -148,19 +152,6 @@ impl RealtimeClient {
     ) -> Result<()> {
         *self = Self::connect(cfg, options).await?;
         Ok(())
-    }
-
-    fn turn_detection(features: &RealtimeFeatures) -> Value {
-        if features.use_server_vad {
-            json!({
-                "type": "server_vad",
-                "threshold": 0.5,
-                "prefix_padding_ms": 300,
-                "silence_duration_ms": 500
-            })
-        } else {
-            Value::Null
-        }
     }
 
     /// Append an input PCM16 mono chunk encoded as base64 (what Realtime expects).
@@ -274,6 +265,7 @@ impl RealtimeClient {
                             // SESSION EVENTS
                             // ============================================================
                             Some("session.created") => Ok(RtEvent::SessionCreated(v)),
+                            Some("session.updated") => Ok(RtEvent::SessionUpdated(v)),
 
                             // ============================================================
                             // AUDIO CHUNKS (new + old)
@@ -531,12 +523,12 @@ impl RealtimeClient {
 
     /// 2) request an audio response
     pub async fn request_speech(&mut self, style: Option<&str>) -> Result<()> {
-        let modalities = vec!["audio", "text"];
+        let output_modalities = vec!["audio"];
         let instructions = style.unwrap_or(REALTIME_TTS_INSTRUCTION);
         let msg = json!({
             "type": "response.create",
             "response": {
-                "modalities": modalities,
+                "output_modalities": output_modalities,
                 "instructions": instructions
             }
         });

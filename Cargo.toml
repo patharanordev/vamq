@@ -1,6 +1,6 @@
 [package]
 name = "vamq"
-version = "0.0.22"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 description = "Consume audio chunk from Voice Activity Messaging via ZeroMQ."
@@ -34,6 +34,7 @@ transform-audio = ["dep:byteorder"]
 transform-datetime = []
 
 [dependencies]
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 anyhow = { version = "1.0.100" }
 tokio = { version = "1", optional = true, features = ["rt-multi-thread", "macros", "time", "sync"] }
 tokio-tungstenite = { version = "0.24", optional = true, default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
@@ -51,3 +52,4 @@ byteorder = { version = "1.5.0", optional = true }
 secrecy = { version = "0.10.3", optional = true, features = ["serde"] }
 rubato = { version = "0.14", optional = true }
 futures-util = { version = "0.3.31", optional = true }
+dotenvy = "0.15"
