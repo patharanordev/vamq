@@ -1,4 +1,4 @@
 cargo fmt --all -- --check;
-cargo clippy -- -D warnings;
-cargo build --locked --verbose;
-cargo test --locked --verbose;
+cargo clippy --all-targets -- -D warnings;
+cargo build --all-targets --locked --verbose;
+cargo test --all-targets --locked --verbose;

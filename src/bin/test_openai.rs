@@ -64,9 +64,9 @@ async fn main() -> Result<()> {
 
     while start.elapsed() < timeout_duration {
         match tokio::time::timeout(std::time::Duration::from_millis(100), event_rx.recv()).await {
-            Ok(Some(event)) => match event {
-                RtEvent::SessionCreated(v) | RtEvent::SessionUpdated(v) => {
-                    if !session_ready {
+            Ok(Some(event)) => {
+                match event {
+                    RtEvent::SessionCreated(v) | RtEvent::SessionUpdated(v) if !session_ready => {
                         let session_id = v["session"]["id"].as_str().unwrap_or("unknown");
                         info!("Session Ready. ID: {}", session_id);
                         session_ready = true;
@@ -75,46 +75,46 @@ async fn main() -> Result<()> {
                         info!("Sending test message...");
                         let mut c = shared_client.lock().await;
                         c.tts("<<<READ>>>Hello, can you hear me? Just checking the connection.<<<END>>>")
-                            .await
-                            .context("Failed to send test TTS")?;
+                        .await
+                        .context("Failed to send test TTS")?;
                         c.request_speech(None)
                             .await
                             .context("Failed to request assistant speech")?;
                     }
-                }
-                RtEvent::TextDelta(t) => {
-                    if !response_started {
-                        print!("[Assistant Text] ");
-                        response_started = true;
+                    RtEvent::TextDelta(t) => {
+                        if !response_started {
+                            print!("[Assistant Text] ");
+                            response_started = true;
+                        }
+                        print!("{}", t);
+                        std::io::Write::flush(&mut std::io::stdout())?;
                     }
-                    print!("{}", t);
-                    std::io::Write::flush(&mut std::io::stdout())?;
-                }
-                RtEvent::AudioDelta(_) => {
-                    if !response_started {
-                        print!("[Assistant Audio] ");
-                        response_started = true;
+                    RtEvent::AudioDelta(_) => {
+                        if !response_started {
+                            print!("[Assistant Audio] ");
+                            response_started = true;
+                        }
+                        print!(".");
+                        std::io::Write::flush(&mut std::io::stdout())?;
                     }
-                    print!(".");
-                    std::io::Write::flush(&mut std::io::stdout())?;
+                    RtEvent::ResponseDone(_) => {
+                        println!("\n[Done] Response completed.");
+                        return Ok(()); // Success exit
+                    }
+                    RtEvent::Error(e) => {
+                        error!("API Error: {}", e);
+                        anyhow::bail!("OpenAI API error: {}", e);
+                    }
+                    RtEvent::Closed => {
+                        warn!("Connection closed by server.");
+                        break;
+                    }
+                    RtEvent::Other(v) => {
+                        debug!("Other event: {}", v["type"]);
+                    }
+                    _ => {}
                 }
-                RtEvent::ResponseDone(_) => {
-                    println!("\n[Done] Response completed.");
-                    return Ok(()); // Success exit
-                }
-                RtEvent::Error(e) => {
-                    error!("API Error: {}", e);
-                    anyhow::bail!("OpenAI API error: {}", e);
-                }
-                RtEvent::Closed => {
-                    warn!("Connection closed by server.");
-                    break;
-                }
-                RtEvent::Other(v) => {
-                    debug!("Other event: {}", v["type"]);
-                }
-                _ => {}
-            },
+            }
             Ok(None) => break, // Channel closed
             Err(_) => {
                 // Heartbeat/timeout - just continue
