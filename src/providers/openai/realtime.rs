@@ -92,12 +92,33 @@ impl RealtimeClient {
         session.insert("type".into(), json!("realtime"));
 
         // Standard GA fields: nested audio configuration
+        let mut input_audio_config = json!({
+            "format": { "type": "audio/pcm", "rate": 24000 }
+        });
+
+        // Input transcription
+        if options.features.enable_input_transcription {
+            let mut trans_map = serde_json::Map::new();
+            if let Some(trans) = &options.input_audio_transcription {
+                trans_map.insert("model".into(), json!(trans.model));
+                // Only serialize prompt if it is Some, not empty, and if the model is not whisper-1
+                if let Some(prompt) = trans
+                    .prompt
+                    .as_deref()
+                    .filter(|p| !p.trim().is_empty() && trans.model != "whisper-1")
+                {
+                    trans_map.insert("prompt".into(), json!(prompt));
+                }
+            } else {
+                trans_map.insert("model".into(), json!("whisper-1"));
+            }
+            input_audio_config["transcription"] = json!(trans_map);
+        }
+
         session.insert(
             "audio".into(),
             json!({
-                "input": {
-                    "format": { "type": "audio/pcm", "rate": 24000 }
-                },
+                "input": input_audio_config,
                 "output": {
                     "format": { "type": "audio/pcm", "rate": 24000 }
                 }
@@ -112,19 +133,6 @@ impl RealtimeClient {
             session.insert("output_modalities".into(), json!(["audio"]));
         } else if options.features.enable_transcribe {
             session.insert("output_modalities".into(), json!(["text"]));
-        }
-
-        // Input transcription
-        if options.features.enable_input_transcription {
-            if let Some(trans) = &options.input_audio_transcription {
-                session.insert("input_audio_transcription".into(), json!(trans));
-            } else {
-                // Default if enabled but not provided
-                session.insert(
-                    "input_audio_transcription".into(),
-                    json!({ "model": "whisper-1" }),
-                );
-            }
         }
 
         let session_cfg = json!({
