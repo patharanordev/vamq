@@ -105,6 +105,7 @@ impl VadConsumer {
 
                     return Ok(Some(VadCommit {
                         session_id: header.session_id,
+                        device_id: header.device_id,
                         seq: header.seq,
                         pcm24k_s16le: pcm24k,
                     }));
